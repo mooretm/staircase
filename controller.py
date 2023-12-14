@@ -1,4 +1,9 @@
+""" Generic app for testing the adaptive staircase.
 
+    Written by: Travis M. Moore
+    Created: December 13, 2023
+    Last edited: December 14, 2023
+"""
 
 ###########
 # Imports #

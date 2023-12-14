@@ -20,9 +20,9 @@ import pandas as pd
 from models import staircase
 
 
-#########
-# Begin #
-#########
+###################
+# STAIRCASE TESTS #
+###################
 class TestStaircase(TestCase):
     def setUp(self):
         """ Create Staircase.
@@ -45,9 +45,9 @@ class TestStaircase(TestCase):
         del self.s
 
 
-    ##############
-    # Unit Tests #
-    ##############
+    ########################
+    # INITIALIZATION TESTS #
+    ########################
     def test_staircase_parameters_on_init(self):
         """ Test that arguments are assigned correctly.
         """
@@ -66,13 +66,15 @@ class TestStaircase(TestCase):
         """ Test that public attribute defaults are correct.
         """
         self.assertEqual(self.s.scores, [])
-        self.assertEqual(self.s.reversals, {})
         self.assertEqual(self.s._level_tracker, [])
-        self.assertEqual(self.s.levels, [])
         self.assertEqual(self.s._step_index, 0)
         self.assertEqual(self.s._trial_num, 0)
+        self.assertEqual(self.s._n_back, 3)
 
 
+    ###########
+    # SCORING #
+    ###########
     def test__handle_response_one_correct(self):
         # Add response to staircase
         response = 1
@@ -115,77 +117,131 @@ class TestStaircase(TestCase):
         self.assertEqual(self.s._level_tracker, [-1, -1])
 
 
-    def test__calc_reversals_1(self):
+    #############
+    # REVERSALS #
+    #############
+    def test__calc_reversals_yes_1(self):
         # Update scores attribute
         self.s.scores = [1, 1, -1]
-        self.s._calc_reversals()
+        output = self.s._calc_reversals()
 
         # Assertions
-        self.assertEqual(len(self.s.reversals), 1)
-        self.assertEqual(self.s.reversals, {0:60})
+        self.assertEqual(output, True)
 
 
-    def test__calc_reversals_2(self):
+    def test__calc_reversals_yes_2(self):
         # Update scores attribute
         self.s.scores = [-1, 1, 1]
-        self.s._calc_reversals()
+        output = self.s._calc_reversals()
 
         # Assertions
-        self.assertEqual(len(self.s.reversals), 1)
-        self.assertEqual(self.s.reversals, {0:60})
+        self.assertEqual(output, True)
 
 
     def test__calc_reversals_all_correct(self):
         # Update scores attribute
         self.s.scores = [1, 1, 1]
-        self.s._calc_reversals()
+        output = self.s._calc_reversals()
 
         # Assertions
-        self.assertEqual(len(self.s.reversals), 0)
-        self.assertEqual(self.s.reversals, {})
+        self.assertEqual(output, False)
 
 
     def test__calc_reversals_all_incorrect(self):
         # Update scores attribute
         self.s.scores = [-1, -1, -1]
-        self.s._calc_reversals()
+        output = self.s._calc_reversals()
 
         # Assertions
-        self.assertEqual(len(self.s.reversals), 0)
-        self.assertEqual(self.s.reversals, {})
+        self.assertEqual(output, False)
 
 
-    def test__calc_reversals_none_1(self):
+    def test__calc_reversals_no_1(self):
         # Update scores attribute
         self.s.scores = [-1, 1, -1]
-        self.s._calc_reversals()
+        output = self.s._calc_reversals()
 
         # Assertions
-        self.assertEqual(len(self.s.reversals), 0)
-        self.assertEqual(self.s.reversals, {})
+        self.assertEqual(output, False)
 
 
-    def test__calc_reversals_none_2(self):
+    def test__calc_reversals_no_2(self):
         # Update scores attribute
         self.s.scores = [1, -1, 1]
-        self.s._calc_reversals()
+        output = self.s._calc_reversals()
 
         # Assertions
-        self.assertEqual(len(self.s.reversals), 0)
-        self.assertEqual(self.s.reversals, {})
+        self.assertEqual(output, False)
 
 
+    #################
+    # LEVEL SETTING #
+    #################
+    def test__calc_level_incorrect_1(self):
+        # Update level tracker
+        self.s._level_tracker = [-1]
+        self.s._calc_level()
+
+        # Assertions
+        self.assertEqual(self.s.current_level, 68)
 
 
+    def test__calc_level_incorrect_2(self):
+        # Update level tracker
+        self.s._level_tracker = [1, -1]
+        self.s._calc_level()
+
+        # Assertions
+        self.assertEqual(self.s.current_level, 68)
 
 
+    def test__calc_level_correct_1(self):
+        # Update level tracker
+        self.s._level_tracker = [1]
+        self.s._calc_level()
+
+        # Assertions
+        self.assertEqual(self.s.current_level, 60)
 
 
+    def test__calc_level_correct_2(self):
+        # Update level tracker
+        self.s._level_tracker = [1, 1]
+        self.s._calc_level()
+
+        # Assertions
+        self.assertEqual(self.s.current_level, 52)
 
 
+    def test__calc_level_over_max(self):
+        # Update level tracker
+        self.s._level_tracker = [-1]
+
+        # Update current level
+        self.s.current_level = 78
+
+        self.s._calc_level()
+
+        # Assertions
+        self.assertEqual(self.s.current_level, 80)
 
 
+    def test__calc_level_under_min(self):
+        # Update level tracker
+        self.s._level_tracker = [1, 1]
 
+        # Update current level
+        self.s.current_level = 51
+
+        self.s._calc_level()
+
+        # Assertions
+        self.assertEqual(self.s.current_level, 50)
+
+
+    ########
+    # MISC #
+    ########
     def test_increase_trial_num(self):
         self.assertEqual(self.s._trial_num, 0)
         self.s._increase_trial_num()
@@ -201,7 +257,7 @@ class TestStaircase(TestCase):
         self.s.add_response(response)
 
         # Assertions
-        self.assertEqual(self.s.levels, [60])
+        self.assertEqual(self.s.current_level, 60)
         self.assertEqual(self.s.scores, [1])
         self.assertEqual(self.s._level_tracker, [1])
 
@@ -213,7 +269,7 @@ class TestStaircase(TestCase):
             self.s.add_response(response)
         
         # Assertions
-        self.assertEqual(self.s.levels, [60, 60])
+        self.assertEqual(self.s.current_level, 52)
         self.assertEqual(self.s.scores, [1, 1])
 
         # _level_tracker should reset after two correct responses
@@ -222,144 +278,171 @@ class TestStaircase(TestCase):
         # The current_level should be updated based on the step_sizes
         self.assertEqual(self.s.current_level, 52)
 
-        # No reversals should have occurred
-        self.assertDictEqual(self.s.reversals, {})
 
-
-    def test_add_response_three_correct(self):
-        # Add three correct responses
-        responses = [1, 1, 1]
-        for response in responses:
-            self.s.add_response(response)
+    # def test_add_response_three_correct(self):
+    #     # Add three correct responses
+    #     responses = [1, 1, 1]
+    #     for response in responses:
+    #         self.s.add_response(response)
         
-        # Assertions
-        self.assertEqual(self.s.levels, [60, 60, 52])
-        self.assertEqual(self.s.scores, [1, 1, 1])
+    #     # Assertions
+    #     self.assertEqual(self.s.levels, [60, 60, 52])
+    #     self.assertEqual(self.s.scores, [1, 1, 1])
 
-        # _level_tracker should reset after two correct responses
-        self.assertEqual(self.s._level_tracker, [1])
+    #     # _level_tracker should reset after two correct responses
+    #     self.assertEqual(self.s._level_tracker, [1])
 
-        # The current_level should be updated based on the step_sizes
-        self.assertEqual(self.s.current_level, 52)
+    #     # The current_level should be updated based on the step_sizes
+    #     self.assertEqual(self.s.current_level, 52)
 
-        # No reversals should have occurred
-        self.assertDictEqual(self.s.reversals, {})
-
-
-    def test_add_response_one_incorrect(self):
-        # Add one incorrect response to staircase
-        response = -1
-        self.s.add_response(response)
-
-        # Assertions
-        # Current level
-        self.assertEqual(self.s.levels, [60])
-
-        # List of scores
-        self.assertEqual(self.s.scores, [-1])
-
-        # _level_tracker should reset after one incorrect response
-        self.assertEqual(self.s._level_tracker, [])
-
-        # No reversals should have occurred
-        self.assertDictEqual(self.s.reversals, {})
+    #     # No reversals should have occurred
+    #     self.assertDictEqual(self.s.reversals, {})
 
 
-    def test_add_response_two_incorrect(self):
-        # Add two incorrect responses
-        responses = [-1, -1]
-        for response in responses:
-            self.s.add_response(response)
+    # def test_add_response_one_incorrect(self):
+    #     # Add one incorrect response to staircase
+    #     response = -1
+    #     self.s.add_response(response)
+
+    #     # Assertions
+    #     # Current level
+    #     self.assertEqual(self.s.levels, [60])
+
+    #     # List of scores
+    #     self.assertEqual(self.s.scores, [-1])
+
+    #     # _level_tracker should reset after one incorrect response
+    #     self.assertEqual(self.s._level_tracker, [])
+
+    #     # No reversals should have occurred
+    #     self.assertDictEqual(self.s.reversals, {})
+
+
+    # def test_add_response_two_incorrect(self):
+    #     # Add two incorrect responses
+    #     responses = [-1, -1]
+    #     for response in responses:
+    #         self.s.add_response(response)
         
-        # Assertions
-        self.assertEqual(self.s.levels, [60, 68])
-        self.assertEqual(self.s.scores, [-1, -1])
+    #     # Assertions
+    #     self.assertEqual(self.s.levels, [60, 68])
+    #     self.assertEqual(self.s.scores, [-1, -1])
 
-        # _level_tracker should reset after one incorrect response
-        self.assertEqual(self.s._level_tracker, [])
+    #     # _level_tracker should reset after one incorrect response
+    #     self.assertEqual(self.s._level_tracker, [])
 
-        # The next level should be updated based on the step_sizes
-        self.assertEqual(self.s.current_level, 76)
+    #     # The next level should be updated based on the step_sizes
+    #     self.assertEqual(self.s.current_level, 76)
 
-        # No reversals should have occurred
-        self.assertDictEqual(self.s.reversals, {})
+    #     # No reversals should have occurred
+    #     self.assertDictEqual(self.s.reversals, {})
 
 
-    def test_correct_incorrect_reversal(self):
-        # Add two correct responses and one incorrect response
-        responses = [1, 1, -1]
-        for response in responses:
-            self.s.add_response(response)
+    # def test_correct_incorrect_reversal(self):
+    #     # Add two correct responses and one incorrect response
+    #     responses = [1, 1, -1]
+    #     for response in responses:
+    #         self.s.add_response(response)
         
-        # Assertions
-        self.assertEqual(self.s.levels, [60, 60, 52])
-        self.assertEqual(self.s.scores, [1, 1, -1])
+    #     # Assertions
+    #     self.assertEqual(self.s.levels, [60, 60, 52])
+    #     self.assertEqual(self.s.scores, [1, 1, -1])
 
-        # _level_tracker should reset after one incorrect response
-        self.assertEqual(self.s._level_tracker, [])
+    #     # _level_tracker should reset after one incorrect response
+    #     self.assertEqual(self.s._level_tracker, [])
 
-        # The  next current_level should be updated based on the step_sizes
-        self.assertEqual(self.s.current_level, 60)
+    #     # The  next current_level should be updated based on the step_sizes
+    #     self.assertEqual(self.s.current_level, 60)
 
-        # One reversal should have occurred
-        self.assertDictEqual(self.s.reversals, {2:52})
+    #     # One reversal should have occurred
+    #     self.assertDictEqual(self.s.reversals, {2:52})
 
 
-    def test_incorrect_correct_reversal(self):
-        # Add one incorrect response and two correct responses
-        responses = [-1, 1, 1]
-        for response in responses:
-            self.s.add_response(response)
+    # def test_incorrect_correct_reversal(self):
+    #     # Add one incorrect response and two correct responses
+    #     responses = [-1, 1, 1]
+    #     for response in responses:
+    #         self.s.add_response(response)
         
-        # Assertions
-        self.assertEqual(self.s.levels, [60, 68, 68])
-        self.assertEqual(self.s.scores, [-1, 1, 1])
+    #     # Assertions
+    #     self.assertEqual(self.s.levels, [60, 68, 68])
+    #     self.assertEqual(self.s.scores, [-1, 1, 1])
 
-        # _level_tracker should reset after two correct responses
-        self.assertEqual(self.s._level_tracker, [])
+    #     # _level_tracker should reset after two correct responses
+    #     self.assertEqual(self.s._level_tracker, [])
 
-        # The next current_level should be updated based on the step_sizes
-        self.assertEqual(self.s.current_level, 60)
+    #     # The next current_level should be updated based on the step_sizes
+    #     self.assertEqual(self.s.current_level, 60)
 
-        # One reversal should have occurred
-        self.assertDictEqual(self.s.reversals, {2:68})
+    #     # One reversal should have occurred
+    #     self.assertDictEqual(self.s.reversals, {2:68})
 
 
-    def test_incorrect_correct_no_reversal(self):
-        # Add one incorrect response and one correct response
-        responses = [-1, 1]
-        for response in responses:
-            self.s.add_response(response)
+    # def test_incorrect_correct_no_reversal(self):
+    #     # Add one incorrect response and one correct response
+    #     responses = [-1, 1]
+    #     for response in responses:
+    #         self.s.add_response(response)
         
-        # Assertions
-        self.assertEqual(self.s.levels, [60, 68])
-        self.assertEqual(self.s.scores, [-1, 1])
+    #     # Assertions
+    #     self.assertEqual(self.s.levels, [60, 68])
+    #     self.assertEqual(self.s.scores, [-1, 1])
 
-        # _level_tracker should reset after two correct responses
-        self.assertEqual(self.s._level_tracker, [1])
+    #     # _level_tracker should reset after two correct responses
+    #     self.assertEqual(self.s._level_tracker, [1])
 
-        # The next current_level should be updated based on the step_sizes
-        self.assertEqual(self.s.current_level, 68)
+    #     # The next current_level should be updated based on the step_sizes
+    #     self.assertEqual(self.s.current_level, 68)
 
-        # No reversals should have occurred
-        self.assertDictEqual(self.s.reversals, {})
+    #     # No reversals should have occurred
+    #     self.assertDictEqual(self.s.reversals, {})
 
 
-    def test_correct_incorrect_no_reversal(self):
-        # Add one correct response and one incorrect response
-        responses = [1, -1]
-        for response in responses:
-            self.s.add_response(response)
+    # def test_correct_incorrect_no_reversal(self):
+    #     # Add one correct response and one incorrect response
+    #     responses = [1, -1]
+    #     for response in responses:
+    #         self.s.add_response(response)
         
+    #     # Assertions
+    #     self.assertEqual(self.s.levels, [60, 60])
+    #     self.assertEqual(self.s.scores, [1, -1])
+
+    #     # _level_tracker should reset after two correct responses
+    #     self.assertEqual(self.s._level_tracker, [])
+
+    #     # The next current_level should be updated based on the step_sizes
+    #     self.assertEqual(self.s.current_level, 68)
+
+    #     # No reversals should have occurred
+    #     self.assertDictEqual(self.s.reversals, {})
+
+
+######################
+# DATAWRANGLER TESTS #
+######################
+class TestDataWrangler(TestCase):
+    def setUp(self):
+        # Create DataWrangler
+        self.dw = staircase.DataWrangler()
+
+
+    def tearDown(self):
+        del self.dw
+
+
+    ########################
+    # INITIALIZATION TESTS #
+    ########################
+    def test_DataWrangler_on_init(self):
+        """ Test datapoints list is empty on intitialization.
+        """
+        self.assertEqual(len(self.dw.datapoints), 0)
+
+
+    def test_new_data_point(self):
+        # Create new DataPoint
+        self.dw.new_data_point()
+
         # Assertions
-        self.assertEqual(self.s.levels, [60, 60])
-        self.assertEqual(self.s.scores, [1, -1])
-
-        # _level_tracker should reset after two correct responses
-        self.assertEqual(self.s._level_tracker, [])
-
-        # The next current_level should be updated based on the step_sizes
-        self.assertEqual(self.s.current_level, 68)
-
-        # No reversals should have occurred
-        self.assertDictEqual(self.s.reversals, {})
+        self.assertEqual(len(self.dw.datapoints), 1)

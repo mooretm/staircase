@@ -10,16 +10,14 @@
 ###########
 # Import data science packages
 import numpy as np
-import pandas as pd
-import scipy.stats as stats
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 rcParams.update({'figure.autolayout': True})
 
 
-#########
-# BEGIN #
-#########
+###################
+# Staircase Class #
+###################
 class Staircase:
     def __init__(self, start_val, step_sizes, nUp, nDown, nTrials,
                  nReversals, rapid_descend, min_val, max_val):
@@ -37,8 +35,6 @@ class Staircase:
 
         # Additional attributes
         self.scores = []
-        self.reversals = {}
-        self.levels = []
         self._level_tracker = []
         self._step_index = 0
         self._trial_num = 0
@@ -48,48 +44,19 @@ class Staircase:
         self.dw = DataWrangler()
 
 
-    def _calc_level(self):
-        """ Calculate the next presentation level based on previous 
-            performance.
+    def add_data_point(self, response):
+        """ Instantiate a new DataPoint using the DataWrangler.
+            Update variables with available trial data.
         """
-        # Must use np.array_equal(A,B) to test for shape and elements
-        # Using any()/all() results in weird behavior with different 
-        #  length arrays and/or empty arrays
-        if np.array_equal(self._level_tracker, np.ones(self.nDown)):
-            self.current_level= self.current_level- self.step_sizes[self._step_index]
-            self._level_tracker = []
-        elif -1 in self._level_tracker:
-            self.current_level= self.current_level+ self.step_sizes[self._step_index]
-            self._level_tracker = []
+        # Instantiate new data point object
+        dp = self.dw.new_data_point()
 
-        # Make sure levels stay within the provided limits
-        if self.current_level > self.max_val:
-            self.current_level = self.max_val
-        elif self.current_level < self.min_val:
-            self.current_level = self.min_val
+        # Update variables
+        dp.trial_number = self._trial_num
+        dp.level = self.current_level
+        dp.response = response
 
-
-    def _calc_reversals(self):
-        """ Determine whether a reversal has occurred.
-        """
-        # Create variables
-        correct_vals = np.ones(self.nDown)
-        reversal_1 = np.append(correct_vals, -1)
-        reversal_2 = np.insert(correct_vals, 0, -1)
-
-        # Check for reversals
-        if np.array_equal(self.scores[-self._n_back:], reversal_1) or \
-        np.array_equal(self.scores[-self._n_back:], reversal_2):
-            self.reversals[self._trial_num] = self.current_level
-            return True
-        else:
-            return False
-
-
-    def _increase_trial_num(self):
-        """ Increase the trial counter by 1.
-        """
-        self._trial_num += 1
+        return dp
 
 
     def _handle_response(self, response):
@@ -112,6 +79,49 @@ class Staircase:
             print("staircase: Invalid response!")
 
 
+    def _calc_reversals(self):
+        """ Determine whether a reversal has occurred.
+        """
+        # Create variables
+        correct_vals = np.ones(self.nDown)
+        reversal_1 = np.append(correct_vals, -1)
+        reversal_2 = np.insert(correct_vals, 0, -1)
+
+        # Check for reversals
+        if np.array_equal(self.scores[-self._n_back:], reversal_1) or \
+        np.array_equal(self.scores[-self._n_back:], reversal_2):
+            return True
+        else:
+            return False
+
+
+    def _calc_level(self):
+        """ Calculate the next presentation level based on previous 
+            performance.
+        """
+        # Must use np.array_equal(A,B) to test for shape and elements
+        # Using any()/all() results in weird behavior with different 
+        #  length arrays and/or empty arrays
+        if np.array_equal(self._level_tracker, np.ones(self.nDown)):
+            self.current_level -= self.step_sizes[self._step_index]
+            self._level_tracker = []
+        elif -1 in self._level_tracker:
+            self.current_level += self.step_sizes[self._step_index]
+            self._level_tracker = []
+
+        # Make sure levels stay within the provided limits
+        if self.current_level > self.max_val:
+            self.current_level = self.max_val
+        elif self.current_level < self.min_val:
+            self.current_level = self.min_val
+
+
+    def _increase_trial_num(self):
+        """ Increase the trial counter by 1.
+        """
+        self._trial_num += 1
+
+
     def add_response(self, response):
         """ Log current level. 
             Score and log response and level tracker.
@@ -119,11 +129,11 @@ class Staircase:
             Calculate next level.
             Increase trial counter.
         """
+        # Begin feedback to console
         print(f"\nstaircase: Trial number: {self._trial_num}")
-        dp = self.add_data_point(response)
 
-        # Log current level
-        self.levels.append(self.current_level)
+        # Instantiate new DataPoint via the DataWrangler
+        dp = self.add_data_point(response)
 
         # Score and log response
         self._handle_response(response)
@@ -137,25 +147,15 @@ class Staircase:
         # Increase trial counter - must come last!!
         self._increase_trial_num()
 
+        # Provide feedback to console
         print(f"staircase: {dp.__dict__}")
-        print(f"staircase: # of reversals: {len(self.reversals.items())}")
+        revs = self.dw._get_reversals()
+        print(f"staircase: Total # of reversals: {len(revs)}")
 
 
-    def add_data_point(self, response):
-        """ Instantiate a new DataPoint using the DataWrangler.
-            Update variables with available trial data.
-        """
-        # Instantiate new data point object
-        dp = self.dw.new_data_point()
-
-        # Update variables
-        dp.trial_number = self._trial_num
-        dp.level = self.current_level
-        dp.response = response
-
-        return dp
-
-
+    ############
+    # Plotting #
+    ############
     def _make_attribute_list(self, data_points, attr):
         """ Iterate through the provided list of data_points 
             and create lists of the specified value.
@@ -203,11 +203,24 @@ class Staircase:
         # Plot labels       
         plt.xlabel("Trial Number")
         plt.ylabel("Level (dB SPL)")
-        #plt.xticks()
         plt.title(f"Average of last 4 reversals: {np.mean(y_rev[-4:])}")
         plt.legend()
         plt.show()
         plt.close()
+
+
+####################
+# Data Point Class #
+####################
+class DataPoint:
+    """ Individual object containing all data for a given trial.
+        Works with DataWrangler class.
+    """
+    def __init__(self):
+        self.trial_number = None
+        self.level = None
+        self.response = None
+        self.reversal = None
 
 
 class DataWrangler:
@@ -244,11 +257,3 @@ class DataWrangler:
         """ Find all data points that match the given filter.
         """
         return [datum for datum in self.datapoints if datum.reversal]
-
-
-class DataPoint:
-    def __init__(self):
-        self.trial_number = None
-        self.level = None
-        self.response = None
-        self.reversal = None
