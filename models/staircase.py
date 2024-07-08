@@ -1,8 +1,9 @@
 """ Adaptive staircase class for psychophysical experiments.
 
     Written by: Travis M. Moore
+    Modeled after StairHandler from PsychoPy
     Created: June 06, 2023
-    Last edited: December 14, 2023
+    Last edited: December 21, 2023
 """
 
 ###########
@@ -25,13 +26,30 @@ class Staircase:
         # Assign arguments to attributes
         self.current_level= start_val
         self.step_sizes = step_sizes
-        self.nUp = nUp
-        self.nDown = nDown
+        self.up_arg = nUp
+        self.down_arg = nDown
         self.nTrials = nTrials
         self.nReversals = nReversals
         self.rapid_descend = rapid_descend
         self.min_val = min_val
         self.max_val = max_val
+
+        # Assign up/down rule based on rapid_descend
+        if rapid_descend:
+            self.nUp = 1
+            self.nDown = 1
+        else:
+            self.nUp = self.up_arg
+            self.nDown = self.down_arg
+
+        # Make sure there are sufficient number of reversals
+        # to run through the list of step sizes
+        if self.nReversals < len(self.step_sizes):
+            msg = f"The number of reversals must be equal to or greater "\
+                f"than the number of step sizes.\nFound {len(step_sizes)} "\
+                f"step sizes, but {nReversals} reversal(s)."
+            print(msg)
+            raise ValueError(msg)
 
         # Additional attributes
         self.scores = []
@@ -39,6 +57,7 @@ class Staircase:
         self._step_index = 0
         self._trial_num = 0
         self._n_back = self.nDown + 1
+        self.status = True # True for go, and False for stop
 
         # Create DataWrangler to hold data points
         self.dw = DataWrangler()
@@ -60,8 +79,7 @@ class Staircase:
 
 
     def _handle_response(self, response):
-        """ Score and log response and level tracker.
-        """
+        """ Score and log response and level tracker."""
         # Score response
         if response == 1:
             print("staircase: Correct")
@@ -80,8 +98,7 @@ class Staircase:
 
 
     def _calc_reversals(self):
-        """ Determine whether a reversal has occurred.
-        """
+        """ Determine whether a reversal has occurred."""
         # Create variables
         correct_vals = np.ones(self.nDown)
         reversal_1 = np.append(correct_vals, -1)
@@ -95,13 +112,29 @@ class Staircase:
             return False
 
 
+    def _calc_next_step_size(self):
+        """ Determine the next step size to use based on the number
+            of reversals. If _step_sizes is a list, a new value will 
+            be selected on each reversal. 
+        """
+        # Grab the step_sizes value where index == number of reversals
+        self._step_index = len(self.dw._get_reversals())
+
+        # Use last step_sizes value if the number of reversals exceed
+        # the number of available step sizes
+        if self._step_index >= len(self.step_sizes):
+            self._step_index = len(self.step_sizes) - 1
+
+
     def _calc_level(self):
         """ Calculate the next presentation level based on previous 
             performance.
         """
         # Must use np.array_equal(A,B) to test for shape and elements
         # Using any()/all() results in weird behavior with different 
-        #  length arrays and/or empty arrays
+        # length arrays and/or empty arrays
+        print(f"level tracker: {self._level_tracker}")
+        print(f"nDown: {np.ones(self.nDown)}")
         if np.array_equal(self._level_tracker, np.ones(self.nDown)):
             self.current_level -= self.step_sizes[self._step_index]
             self._level_tracker = []
@@ -117,9 +150,36 @@ class Staircase:
 
 
     def _increase_trial_num(self):
-        """ Increase the trial counter by 1.
-        """
+        """ Increase the trial counter by 1."""
         self._trial_num += 1
+
+
+    def _check_up_down_rule(self):
+        """ Update up/down values to those provided after
+            first reversal, if rapid_descend == True.
+        """
+        # Provide feedback to console
+        revs = self.dw._get_reversals()
+        print(f"staircase: Total # of reversals: {len(revs)}")
+
+        # Update up/down rule after first reversal
+        if self.rapid_descend:
+            if len(revs) >= 1:
+                self.nUp = self.up_arg
+                self.nDown = self.down_arg
+                self._n_back = self.nDown + 1
+
+
+    def _check_for_end_of_staircase(self):
+        """ Check whether the minimum number of trials and reversals
+            has been met. If yes, end task.
+        """
+        # Trial stopping rule reached?
+        if self._trial_num >= self.nTrials:
+            # Reversal stopping rule reached?
+            if len(self.dw._get_reversals()) >= self.nReversals:
+                self.status = False
+                print(f"\n\nstaircase: Task complete!\n")
 
 
     def add_response(self, response):
@@ -141,16 +201,24 @@ class Staircase:
         # Check for reversal
         dp.reversal = self._calc_reversals()
 
-        # Calculate next level
+        # Calculate next step size: must precede _calc_level!!
+        self._calc_next_step_size()
+
+        # Calculate next level: must follow _calc_next_step_size!!
         self._calc_level()
+
+        # Display DataPoint trial parameters
+        print(f"staircase: {dp.__dict__}")
+
+        # Check that up/down values update after rapid descend
+        if self.rapid_descend:
+            self._check_up_down_rule()
+
+        # Check for end of staircase 
+        self._check_for_end_of_staircase()
 
         # Increase trial counter - must come last!!
         self._increase_trial_num()
-
-        # Provide feedback to console
-        print(f"staircase: {dp.__dict__}")
-        revs = self.dw._get_reversals()
-        print(f"staircase: Total # of reversals: {len(revs)}")
 
 
     ############
@@ -200,18 +268,19 @@ class Staircase:
                  linestyle='none', color='k', fillstyle='none', 
                  label="Reversal")
 
-        # Plot labels       
+        # Plot labels
         plt.xlabel("Trial Number")
         plt.ylabel("Level (dB SPL)")
-        plt.title(f"Average of last 4 reversals: {np.mean(y_rev[-4:])}")
+        plt.title(f"Average of last {len(reversals)-1} reversals: " +
+                  f"{np.round(np.mean(y_rev[-(len(reversals)-1):]), 2)}")
         plt.legend()
         plt.show()
         plt.close()
 
 
-####################
-# Data Point Class #
-####################
+######################
+# Data Point Classes #
+######################
 class DataPoint:
     """ Individual object containing all data for a given trial.
         Works with DataWrangler class.
@@ -224,36 +293,31 @@ class DataPoint:
 
 
 class DataWrangler:
-    """ Represent a collection of data points that can 
-        be searched.
-    """
+    """ Represent a collection of data points that can be searched."""
     def __init__(self):
-        """Initialize a DataWrangler with an empty list.
-        """
+        """Initialize a DataWrangler with an empty list."""
         self.datapoints = []
 
 
     def new_data_point(self):
-        """ Create new DataPoint object and append to list.
-        """
+        """ Create new DataPoint object and append to list."""
         dp = DataPoint()
         self.datapoints.append(dp)
         return dp
 
 
     def _get_correct(self):
-        """ Return a list of all DataPoint objects with a correct response.
-        """
+        """ Return a list of all DataPoint objects with a correct response."""
         return [datum for datum in self.datapoints if datum.response == 1]
 
 
     def _get_incorrect(self):
-        """ Return a list of all DataPoint objects with an incorrect response.
+        """ Return a list of all DataPoint objects with an incorrect 
+            response.
         """
         return [datum for datum in self.datapoints if datum.response == -1]
 
 
     def _get_reversals(self):
-        """ Find all data points that match the given filter.
-        """
+        """ Find all data points that match the given filter."""
         return [datum for datum in self.datapoints if datum.reversal]

@@ -2,7 +2,7 @@
 
     Written by: Travis M. Moore
     Created: December 13, 2023
-    Last edited: December 14, 2023
+    Last edited: December 21, 2023
 """
 
 ###########
@@ -14,6 +14,7 @@ import random
 # Import GUI packages
 import tkinter as tk
 from tkinter import ttk
+from tkinter import messagebox
 
 # Import custom modules
 from models import staircase
@@ -27,16 +28,17 @@ interval_order = [1,2]
 
 # Staircase
 s = staircase.Staircase(
-    start_val=80,
-    step_sizes=[4,2],
+    start_val=70,
+    step_sizes=[4, 2, 1, 1],
     nUp=1,
     nDown=2,
-    nTrials=4,
-    nReversals=2,
+    nTrials=1,
+    nReversals=5,
     rapid_descend=True,
-    min_val=50,
+    min_val=40,
     max_val=80
 )
+
 
 #############
 # Functions #
@@ -47,12 +49,26 @@ def _first_interval():
     elif values[1] == 1:
         s.add_response(-1)
 
+    # Check for end of staircase
+    if not s.status:
+        _on_end()
+
+    # Automatically start next trial
+    _on_start()
+
 
 def _second_interval():
     if values[0] == 1:
         s.add_response(-1)
     elif values[1] == 1:
         s.add_response(1)
+    
+    # Check for end of staircase
+    if not s.status:
+        _on_end()
+
+    # Automatically start next trial
+    _on_start()
 
 
 def _on_start():
@@ -60,6 +76,20 @@ def _on_start():
     values = random.sample(interval_order, 2)
     int1.set(values[0])
     int2.set(values[1])
+
+    # Check for end of staircase
+    if not s.status:
+        _on_end()
+
+
+def _on_end():
+    messagebox.showinfo(
+        title="Task Complete",
+        message="You have complete this task!",
+        detail="Please let the investigator know you have finished."
+    )
+    s.plot_data()
+    quit()
 
 
 #########
